@@ -8,12 +8,9 @@ export default function DragFile() {
       <Box align={"center"}>
         <FiFilePlus size={100} />
         <Text mt={"10%"}>
-          Drag and drop an <strong>.xlsx</strong> file{" "}
+          Drag and drop a <strong>.png or .jpg</strong> image file{" "}
         </Text>
-        <Text mt={"3%"}>
-          Translation file should have <strong>Source</strong> and{" "}
-          <strong>Target</strong> headers{" "}
-        </Text>
+
       </Box>
     </Center>
   );

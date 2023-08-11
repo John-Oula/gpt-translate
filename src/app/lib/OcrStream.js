@@ -1,39 +1,43 @@
 import { createParser } from "eventsource-parser";
+import axios from "axios";
 
-export async function OpenAIStream(payload) {
+export async function OcrStream(payload) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   let counter = 0;
 
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      headers: {
-        "Content-Type": "application/json",
-        "access-control-allow-origin": "*",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+
+    const res = await axios.post(
+      "http://127.0.0.1:8000/api/ocr",
+      payload,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    console.log(res.ok);
     if (res?.ok) {
       const stream = new ReadableStream({
         async start(controller) {
           function onParse(event) {
+            console.log(event);
             if (event.type === "event") {
               const data = event.data;
-              if (data === "[DONE]") {
-                controller.close();
-                return;
-              }
+              // if (data === "[DONE]") {
+              //   controller.close();
+              //   return;
+              // }
               try {
                 const json = JSON.parse(data);
-                const text = json.choices[0].delta.content;
+                console.log(json);
 
-                if (counter < 2 && (text?.match(/\n/) || []).length) {
-                  return;
-                }
-                const queue = encoder.encode(text);
-                controller.enqueue(queue);
+                // if (counter < 2 && (text?.match(/\n/) || []).length) {
+                //   return;
+                // }
+                // const queue = encoder.encode(text);
+                // controller.enqueue(queue);
                 counter++;
               } catch (e) {
                 controller.error(e);

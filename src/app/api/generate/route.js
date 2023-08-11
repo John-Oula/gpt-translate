@@ -10,7 +10,7 @@ export async function POST(req) {
 
   const payload = {
     messages: prompt,
-    max_tokens: 100,
+    // max_tokens: 100,
     temperature: 0.7,
     n: 1,
     model: "gpt-4",

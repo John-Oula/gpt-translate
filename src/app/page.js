@@ -1,6 +1,6 @@
 "use client";
-import { useRef, useState } from "react";
-import { useToast} from "@chakra-ui/react";
+import { useEffect, useState } from "react";
+import { Image, useToast } from "@chakra-ui/react";
 import DragFile from "./Components/DragFile";
 import {
   Flex,
@@ -11,53 +11,143 @@ import {
   Thead,
   Tr,
 } from "@chakra-ui/react";
-import { read, utils } from "xlsx";
+import axios from "axios";
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 import TextBox from "./Components/Textbox";
 
 export default function Home() {
-  const [fileData, setFileData] = useState();
-  const toast = useToast()
+  const [fileData, setFileData] = useState([]);
+  const [comic, setComic] = useState(null);
+  const [ocr, setOcr] = useState([]);
+  const toast = useToast();
+  const [translation, setTranslation] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleFileDrop = (event) => {
+  const sendImage = async (imageFile) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", imageFile);
+
+      
+      await fetchEventSource("http://127.0.0.1:8000/api/ocr", {
+        method: "POST",
+        body:formData,
+        headers: {
+          "Accept": "text/event-stream",
+
+        },
+        onopen(res) {
+          if (res.ok && res.status === 200) {
+            console.log("Connection made ", res);
+          } else if (
+            res.status >= 400 &&
+            res.status < 500 &&
+            res.status !== 429
+          ) {
+            console.log("Client side error ", res);
+          }
+        },
+        onmessage(event) {
+          console.log(event.data);
+          const parsedData = JSON.parse(event.data);
+          setFileData((data) => [...data, parsedData]);
+          console.log(parsedData);
+
+        },
+        onclose() {
+          console.log("Connection closed by the server");
+        },
+        onerror(err) {
+          console.log("There was an error from server", err);
+        },
+      });
+    
+    } catch (error) {
+      console.error("Error sending image:", error);
+      throw error;
+    }
+  };
+
+  const handleFileDrop = async (event) => {
     try {
       event.preventDefault();
       const file = event.dataTransfer.files[0];
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const workbook = read(new Uint8Array(e.target.result), { type: "array" });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const data = utils.sheet_to_json(worksheet, { header: 1 });
-  
-        // Extract data from "source" and "target" headers
-        const headers = data[0];
-        const sourceIndex = headers.indexOf("Source");
-        const translationIndex = headers.indexOf("Target");
-  
-        if (sourceIndex !== -1 && translationIndex !== -1) {
-          const extractedData = data.slice(1).map((row) => ({
-            source: row[sourceIndex],
-            target: row[translationIndex],
-          }));
-  
-          setFileData(extractedData);
-        } else {
-          throw new Error("Required headers not found")
-        }
-      };
-      reader.readAsArrayBuffer(file);
-      
+      const imageUrl = URL.createObjectURL(file);
+
+      setComic(imageUrl);
+      await sendImage(file)
+        .then((data) => {
+          setOcr(data.data);
+
+          // translate(JSON.stringify(data));
+        })
+        .catch((err) => console.log(err.message));
     } catch (error) {
       toast({
         title: error.message,
         duration: 5000,
         status: "warning",
-        description:"",
-              })
+        description: "",
+      });
     }
- 
   };
+
+  const translate = async (comicData) => {
+    setTranslation("");
+    setLoading(true);
+
+    const systemMsg = `You are a veteran translator.
+    You will be provided with short sentences to translate.
+    You have these requirements:
+    1. Translate the short sentences into English.
+    3. Provide the same json structure. 
+    4. Do not use quotes, unless if they are part of the provided text.`;
+
+    const prompt = [
+      { role: "system", content: systemMsg },
+      {
+        role: "user",
+        content: `Translate the following to English: ${comicData}`,
+      },
+    ];
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      body: JSON.stringify({
+        prompt: prompt,
+      }),
+    });
+
+    if (!response.ok) {
+      setLoading(false);
+      throw new Error(response.statusText);
+    }
+
+    const data = response.body;
+    if (!data) {
+      return;
+    }
+    const reader = data.getReader();
+    const decoder = new TextDecoder();
+    let isDone = false;
+
+    while (!isDone) {
+      const { value, done } = await reader.read();
+      isDone = done;
+      const chunkValue = decoder.decode(value);
+      setTranslation((prev) => prev + chunkValue);
+      console.log(chunkValue);
+    }
+
+    setLoading(false);
+  };
+
   return (
     <Flex
+      position={"relative"}
       justifyContent={"center"}
       bg={"black.400"}
       h={"100%"}
@@ -70,22 +160,30 @@ export default function Home() {
       }}
     >
       <TableContainer h={"100%"} width={"100%"}>
-        {!fileData ? (
+        {!comic ? (
           <DragFile />
         ) : (
-          <Table
-            colorScheme={"whiteAlpha"}
-            mt={"2%"}
-            variant="striped"
-          >
-            <Thead>
-              <Tr>
-                <Th>Source</Th>
-                <Th>Target</Th>
-              </Tr>
-            </Thead>
-            <Tbody w={50}>
-              {fileData?.slice(0, 100).map((each, i) => {
+          <Flex h={"100%"}>
+            {/* {
+              ocr &&
+              
+                ocr.map((each,i) => <RectangleDrawer key={i} coordinates={each.box} />)
+              
+            } */}
+            {comic && 
+            <>
+             <Image h={'100vh'} w={'50%'} src={comic} alt="preview" />
+            </>}
+            <Table colorScheme={"whiteAlpha"} mt={"2%"} variant="striped">
+              <Thead>
+                <Tr>
+                  <Th>Source</Th>
+                  <Th>Target</Th>
+                </Tr>
+              </Thead>
+              <Tbody w={50}>
+
+              {fileData.map((each, i) => {
                 return (
                   each?.source && (
                     <TextBox
@@ -97,8 +195,9 @@ export default function Home() {
                   )
                 );
               })}
-            </Tbody>
-          </Table>
+              </Tbody>
+            </Table>
+          </Flex>
         )}
       </TableContainer>
     </Flex>
