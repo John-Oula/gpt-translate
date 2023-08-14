@@ -80,13 +80,16 @@ def findSpeechBubbles(imagePath, method):
         contour = contour.astype(np.int32)
         rect = cv2.boundingRect(contour)
 
-        # cv2.drawContours(image, [contour], 0, (0, 0, 255), 2)
+
 
         [x, y, w, h] = rect
 
         # filter out speech bubble candidates with unreasonable size
-        if w < 500 and w > 40 and h < 500 and h > 40:
+        if w < 500 and w > 50 and h < 900 and h > 40:
+            
             cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            # cv2.drawContours(image, [contour], 0, (0, 0, 255), 2)
+            cv2.imwrite(UPLOAD_DIR+"/"+str(i)+".jpg", image)
             croppedImage = image[y:y+h, x:x+w]
             croppedImageList.append(croppedImage)
             cv2.imwrite(UPLOAD_DIR+"/"+'cropped/'+ str(i)+".jpg", croppedImage)
@@ -113,20 +116,15 @@ def images_to_ndarray(image_list):
     return image_array
 
 async def text_generator(request):
-    text_list_data = []
     i = 0
     for img in os.listdir(os.path.join(UPLOAD_DIR,'cropped')):
-        # img = cv2.imread(os.path.join(UPLOAD_DIR,'cropped',img))
-        # np_img.append(img)
         if await request.is_disconnected():
             print("client disconnected!!!")
             break
         text = mocr(os.path.join(UPLOAD_DIR,'cropped',img))
         print(text)
-        text_data = text
         i+=1
-        text_list_data.append(text_data)
-        yield json.dumps({"source":text,"id": i})
+        yield json.dumps({"id": i,"source":text})
 
 @app.post("/api/ocr")
 async def upload_file(request: Request,file: UploadFile = File(...)):

@@ -24,6 +24,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
 
   const sendImage = async (imageFile) => {
+    setLoading(true)
     try {
       const formData = new FormData();
       formData.append("file", imageFile);
@@ -55,16 +56,25 @@ export default function Home() {
 
         },
         onclose() {
+          setLoading(false)
           console.log("Connection closed by the server");
         },
         onerror(err) {
+          setLoading(false)
           console.log("There was an error from server", err);
         },
       });
     
     } catch (error) {
+      setLoading(false)
       console.error("Error sending image:", error);
-      throw error;
+
+      toast({
+        title: error.message,
+        duration: 5000,
+        status: "warning",
+        description: "",
+      });
     }
   };
 
@@ -164,12 +174,6 @@ export default function Home() {
           <DragFile />
         ) : (
           <Flex h={"100%"}>
-            {/* {
-              ocr &&
-              
-                ocr.map((each,i) => <RectangleDrawer key={i} coordinates={each.box} />)
-              
-            } */}
             {comic && 
             <>
              <Image h={'100vh'} w={'50%'} src={comic} alt="preview" />
