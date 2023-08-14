@@ -10,7 +10,7 @@ import {
   useDisclosure,
   useToast,
 } from "@chakra-ui/react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { RiTranslate2 } from "react-icons/ri";
 import { TailSpin } from "react-loader-spinner";
 
@@ -21,65 +21,87 @@ export default function TextBox({ source, index }) {
   const [loading, setLoading] = useState(false);
   const toast = useToast();
 
+  // Translate the source text function
   const translate = async (id) => {
     const text = document.getElementById(id).innerText;
     setTranslation("");
     setTranslated(false);
     setLoading(true);
+    try {
+      const systemMsg = `You are a veteran comic translator.
+      You will be provided with short sentences to translate.
+      You have these requirements:
+      1. Translate the short sentences into English.
+      2. Aside from the translation, do not provide any other output. 
+      3. Do not use quotes, unless if they are part of the provided text.`;
+  
+      const prompt = [
+        { role: "system", content: systemMsg },
+        {
+          role: "user",
+          content: `Translate the following to English: ${text}`,
+        },
+      ];
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+  
+        body: JSON.stringify({
+          prompt: prompt,
+        }),
+      });
 
-    const systemMsg = `You are a veteran translator.
-    You will be provided with short sentences to translate.
-    You have these requirements:
-    1. Translate the short sentences into English.
-    2. Use the glossary only if glossary terms are provided, for reference and ensure you replace any matching glossary terms in the sentences with matching translations. 
-    3. Aside from the translation, do not provide any other output. 
-    4. Do not use quotes, unless if they are part of the provided text.`;
+      if (!response.ok) {
+        setLoading(false);
+        const err = await response.json();
+        console.log(err);
+        throw new Error(err.error);
+      }
 
-    const prompt = [
-      { role: "system", content: systemMsg },
-      {
-        role: "user",
-        content: `Translate the following to English: ${text}`,
-      },
-    ];
-    const response = await fetch("/api/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      const data = response.body;
 
-      body: JSON.stringify({
-        prompt: prompt,
-      }),
-    });
+      if (!data) {
+        return;
+      }
+      const reader = data.getReader();
+      const decoder = new TextDecoder();
+      let isDone = false;
 
-    if (!response.ok) {
+      while (!isDone) {
+        const { value, done } = await reader.read();
+        isDone = done;
+        const chunkValue = decoder.decode(value);
+        setTranslation((prev) => prev + chunkValue)
+      
+      }
       setLoading(false);
-      throw new Error(response.statusText);
+      setTranslated(true);
+    } catch (error) {
+      toast({
+        // id,
+        title: error.message,
+        duration: 7000,
+        status: "warning",
+        description: "",
+      });
+      setLoading(false);
     }
-
-    const data = response.body;
-    if (!data) {
-      return;
-    }
-    const reader = data.getReader();
-    const decoder = new TextDecoder();
-    let isDone = false;
-
-    while (!isDone) {
-      const { value, done } = await reader.read();
-      isDone = done;
-      const chunkValue = decoder.decode(value);
-      setTranslation((prev) => prev + chunkValue)
-        
-    }
-
-    setLoading(false);
-    setTranslated(true);
   };
+ 
+  // Call translation function if source text is updated
+  useEffect(() =>{
+    if(source && !translation){
+      translate(index)
+    }
+  },[source])
+
+  
+
   return (
-    <Tr className="table-row">
-      <Td w={"50%"} onClick={onToggle}>
+    <Tr h={10} className="table-row">
+      <Td h={10} w={"50%"} onClick={onToggle}>
         <Editable
           id={index}
           defaultValue={source}
@@ -103,7 +125,7 @@ export default function TextBox({ source, index }) {
             </Button>
           </Flex>
 
-          <Flex mt={"2%"} w={"100%"} alignItems={"center"}></Flex>
+          <Flex mt={"2%"} w={"50%"} alignItems={"center"}></Flex>
         </Collapse>
       </Td>
       <Td w={"50%"}>

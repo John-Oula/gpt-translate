@@ -1,8 +1,9 @@
-import { createParser } from "eventsource-parser";
+import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
 
 export async function OpenAIStream(payload) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
+  let res;
   let counter = 0;
 
   try {
@@ -13,7 +14,7 @@ export async function OpenAIStream(payload) {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(payload)
     });
     if (res?.ok) {
       const stream = new ReadableStream({
@@ -37,7 +38,7 @@ export async function OpenAIStream(payload) {
                 counter++;
               } catch (e) {
                 controller.error(e);
-                console.error(e.message);
+                console.error(e.message)
               }
             }
           }
@@ -55,10 +56,16 @@ export async function OpenAIStream(payload) {
 
       return stream;
     } else {
-      
-      return res;
+      const {error} = await res.json()
+      throw new Error(error.message)
     }
+
+
   } catch (error) {
-    console.log(error);
+
+    throw error
   }
+
+
+
 }

@@ -116,20 +116,24 @@ def images_to_ndarray(image_list):
     return image_array
 
 async def text_generator(request):
-    i = 0
-    for img in os.listdir(os.path.join(UPLOAD_DIR,'cropped')):
+    i = 1
+    image_list = os.listdir(os.path.join(UPLOAD_DIR,'cropped'))
+    for img in image_list:
         if await request.is_disconnected():
             print("client disconnected!!!")
             break
-        text = mocr(os.path.join(UPLOAD_DIR,'cropped',img))
-        print(text)
-        i+=1
-        yield json.dumps({"id": i,"source":text})
+        if i <= len(image_list): 
+            text = mocr(os.path.join(UPLOAD_DIR,'cropped',img))
+            print(text)
+            i+=1
+            yield json.dumps({"id": i,"source":text})
+        else:
+            print("OCR complete!")    
+            break
 
 @app.post("/api/ocr")
 async def upload_file(request: Request,file: UploadFile = File(...)):
-    print(request.body())
-    print(request.form())
+
     
     try:
         if not os.path.exists(UPLOAD_DIR):
